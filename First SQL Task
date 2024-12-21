@@ -1,0 +1,35 @@
+#Please Run in Biq Query 
+WITH customer_types AS (
+    SELECT
+        customer_id,
+        CASE 
+            WHEN date_diff(subscription_end, subscription_start, month) < 3 THEN 'churned'
+            WHEN subscription_status = 1 THEN 'active'
+            ELSE 'other'
+        END AS customer_type
+    FROM 
+        `hip-wharf-401910.Task.customers1`
+),
+customer_stats AS (
+    SELECT
+        customer_type,
+        COUNT(DISTINCT c.customer_id) AS customer_count,
+        AVG(o.order_value) AS avg_order_value,
+        COUNT(o.order_id) / NULLIF(COUNT(DISTINCT c.customer_id), 0) AS order_frequency
+    FROM 
+        customer_types c
+    LEFT JOIN 
+        `hip-wharf-401910.Task.orders2` o
+    ON 
+        c.customer_id = o.customer_id
+    GROUP BY 
+        customer_type
+)
+SELECT
+    customer_type,
+    customer_count,
+    avg_order_value,
+    order_frequency
+FROM 
+    customer_stats;
+
