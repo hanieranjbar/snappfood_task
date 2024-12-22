@@ -1,0 +1,38 @@
+WITH filtered_orders AS (
+    SELECT *
+    FROM `hip-wharf-401910.Task.orders3`
+    WHERE CAST(order_date AS DATE) >= DATE('2024-06-20')
+),
+avg_values AS (
+    SELECT
+        o.is_pro_order,
+        AVG(o.order_value) AS avg_order_value
+    FROM 
+        filtered_orders o
+    GROUP BY 
+        o.is_pro_order
+)
+SELECT
+    CASE 
+        WHEN o.is_pro_order = 1 THEN 'FoodPro Subscribers'
+        ELSE 'Non-FoodPro Subscribers'
+    END AS customer_group,
+    COUNT(o.order_id) AS total_orders,
+    AVG(o.order_value) AS avg_order_value,
+    SUM(o.order_value) AS total_order_value,
+    ROUND(
+        COUNT(o.order_id) * 100.0 / (SELECT COUNT(order_id) 
+                                     FROM filtered_orders), 2
+    ) AS order_percentage,
+
+  --avg_order_value_difference
+
+    (SELECT MAX(avg_order_value) - MIN(avg_order_value) FROM avg_values) AS avg_order_value_difference
+FROM 
+    filtered_orders o
+JOIN 
+    `hip-wharf-401910.Task.customers2` c
+ON 
+    o.customer_id = c.customer_id
+GROUP BY 
+    o.is_pro_order;
