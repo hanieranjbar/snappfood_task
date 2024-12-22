@@ -1,0 +1,59 @@
+WITH recent_pro_orders AS (
+    SELECT 
+        o.order_id, 
+        o.customer_id, 
+        o.order_date, 
+        o.order_value, 
+        oi.vendor_id
+    FROM `hip-wharf-401910.Task.orders3` o
+    JOIN `hip-wharf-401910.Task.order_items1` oi
+    ON o.order_id = oi.order_id
+    WHERE CAST(o.order_date AS DATE) >= DATE_SUB(CURRENT_DATE(), INTERVAL 3 MONTH)
+      AND o.is_pro_order = 1
+),
+vendor_pro_revenue AS (
+    SELECT 
+        oi.vendor_id, 
+        v.city, 
+        SUM(o.order_value) AS total_pro_revenue
+    FROM recent_pro_orders o
+    JOIN `hip-wharf-401910.Task.order_items1` oi
+    ON o.order_id = oi.order_id
+    JOIN `hip-wharf-401910.Task.vendors` v
+    ON oi.vendor_id = v.vendor_id
+    GROUP BY oi.vendor_id, v.city
+),
+total_vendor_revenue AS (
+    SELECT 
+        oi.vendor_id, 
+        SUM(o.order_value) AS total_vendor_revenue
+    FROM `hip-wharf-401910.Task.orders3` o
+    JOIN `hip-wharf-401910.Task.order_items1` oi
+    ON o.order_id = oi.order_id
+    GROUP BY oi.vendor_id
+),
+vendor_pro_revenue_percentage AS (
+
+    SELECT 
+        vpr.vendor_id, 
+        vpr.city, 
+        vpr.total_pro_revenue, 
+        tvr.total_vendor_revenue, 
+        ROUND(vpr.total_pro_revenue * 100.0 / tvr.total_vendor_revenue, 2) AS revenue_percentage
+    FROM vendor_pro_revenue vpr
+    JOIN total_vendor_revenue tvr
+    ON vpr.vendor_id = tvr.vendor_id
+),
+ranked_vendors AS (
+    SELECT 
+        vprp.vendor_id, 
+        vprp.city, 
+        vprp.total_pro_revenue AS total_order_value, 
+        vprp.revenue_percentage,
+        RANK() OVER (PARTITION BY vprp.city ORDER BY vprp.total_pro_revenue DESC) AS vendor_rank
+    FROM vendor_pro_revenue_percentage vprp
+)
+SELECT vendor_id, city, total_order_value, revenue_percentage
+FROM ranked_vendors
+WHERE vendor_rank <= 10
+ORDER BY city, vendor_rank;
